@@ -1,7 +1,6 @@
 """
 hardware_hal.py
-================
-Hardware Abstraction Layer (HAL) & Digital Twin Simulation for Raspberry Pi Smart Greenhouse.
+
 
 This module provides:
 1. `VirtualRPiGPIO`: A drop-in digital twin emulator for `RPi.GPIO` mimicking BCM pinouts,

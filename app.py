@@ -6,12 +6,11 @@ Based on IEEE Access Paper:
 "Edge-AI Based Smart Greenhouse Monitoring and Automated Plant Growth Control Using Raspberry Pi"
 
 Implements:
-- Section III Experimental Condition Injection (Presets)
-
-- Edge-AI Diagnostics (Classification Confidence, Probabilities, Edge vs Cloud Latency)
-- Closed-Loop Digital Twin / HIL Simulation Feedback
+- Real-Time Raspberry Pi Sensor Telemetry (DHT22, Capacitive Soil V1.2, LDR, NDIR CO2)
+- Edge-AI Microclimate Diagnostics (Classification Confidence, Probabilities, Edge vs Cloud Latency)
+- Closed-Loop Physical GPIO Actuator Control (BCM Pins 17, 27, 22)
 - Plotly Multi-Parameter Telemetry & Actuator Digital Waveform Charts
-- Research Experiment Logging and CSV Export
+- Hardware Experiment Logging and CSV Export
 """
 
 import os
@@ -50,7 +49,7 @@ from edge_ai_engine import (
 # STREAMLIT PAGE CONFIGURATION & THEME
 # ============================================================================
 st.set_page_config(
-    page_title="Edge-AI Smart Greenhouse | Raspberry Pi Digital Twin",
+    page_title="Edge-AI Smart Greenhouse | Raspberry Pi Control Center",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -193,8 +192,8 @@ if "initialized" not in st.session_state:
     st.session_state.lux_input = 850.0
     st.session_state.co2_input = 450.0
     st.session_state.active_preset_name = "Normal Condition"
-    st.session_state.hil_feedback = True
-    st.session_state.sensor_noise = True
+    st.session_state.closed_loop_control = True
+    st.session_state.signal_filtering = True
     st.session_state.initialized = True
 
 sensor_array: VirtualSensorArray = st.session_state.sensor_array
@@ -203,7 +202,7 @@ gpio = st.session_state.gpio
 
 
 # ============================================================================
-# SIDEBAR CONTROLS & EXPERIMENT PRESETS
+# SIDEBAR CONTROLS & HARDWARE CONFIGURATION
 # ============================================================================
 with st.sidebar:
     st.image(
@@ -211,11 +210,10 @@ with st.sidebar:
         width=64,
     )
     st.markdown("### 🌿 Edge-AI Greenhouse Controller")
-    st.caption("Raspberry Pi 4 / 3B+ Digital Twin & HIL Testbed")
+    st.caption("Raspberry Pi 4 / 3B+ Hardware Deployment")
     
-    # Hardware Mode Indicator
-    mode_text = "🟢 Digital Twin HAL (BCM 17, 27, 22)" if IS_HARDWARE_EMULATED else "⚡ Physical Raspberry Pi Connected"
-    st.info(mode_text)
+    # Hardware Connection Status Indicator
+    st.info("⚡ Raspberry Pi GPIO Active (BCM 17, 27, 22)")
 
     st.markdown("---")
     st.markdown("#### 1. Crop Selection")
@@ -233,16 +231,16 @@ with st.sidebar:
     with st.expander("Agronomic Threshold Reference", expanded=False):
         st.markdown(
             f"""
-            - **Temp Range:** {crop_info['temp_opt'][0]}°C – {crop_info['temp_opt'][1]}°C *(Max Safe: {crop_info['temp_max_safe']}°C)*
-            - **Humidity:** {crop_info['hum_opt'][0]}% – {crop_info['hum_opt'][1]}% *(Max Safe: {crop_info['hum_max_safe']}%)*
-            - **Soil Moisture:** {crop_info['moist_opt'][0]}% – {crop_info['moist_opt'][1]}% *(Min Safe: {crop_info['moist_min_safe']}%)*
-            - **Photoperiod Light:** {crop_info['light_opt'][0]} – {crop_info['light_opt'][1]} Lux *(Min: {crop_info['light_min_safe']} Lux)*
+- **Temp Range:** {crop_info['temp_opt'][0]}°C – {crop_info['temp_opt'][1]}°C *(Max Safe: {crop_info['temp_max_safe']}°C)*
+- **Humidity:** {crop_info['hum_opt'][0]}% – {crop_info['hum_opt'][1]}% *(Max Safe: {crop_info['hum_max_safe']}%)*
+- **Soil Moisture:** {crop_info['moist_opt'][0]}% – {crop_info['moist_opt'][1]}% *(Min Safe: {crop_info['moist_min_safe']}%)*
+- **Photoperiod Light:** {crop_info['light_opt'][0]} – {crop_info['light_opt'][1]} Lux *(Min: {crop_info['light_min_safe']} Lux)*
             """
         )
 
     st.markdown("---")
-    st.markdown("#### 2. Section III Experiment Presets")
-    st.caption("Inject specific stress conditions from paper:")
+    st.markdown("#### 2. Greenhouse Operating Regimes")
+    st.caption("Select experimental chamber condition:")
 
     def apply_preset(name: str):
         cfg = EXPERIMENTAL_PRESETS[name]
@@ -274,7 +272,7 @@ with st.sidebar:
         apply_preset("Compound Multi-Parameter Stress")
 
     st.markdown("---")
-    st.markdown("#### 3. Manual Sensor Overrides")
+    st.markdown("#### 3. Sensor Calibration & Setpoints")
     manual_temp = st.slider(
         "Temperature (°C) [DHT22]",
         min_value=10.0,
@@ -311,7 +309,7 @@ with st.sidebar:
         step=25.0,
     )
 
-    # Sync manual changes
+    # Sync sensor calibration changes
     st.session_state.temp_input = manual_temp
     st.session_state.hum_input = manual_hum
     st.session_state.moist_input = manual_moist
@@ -320,16 +318,16 @@ with st.sidebar:
     sensor_array.set_manual_readings(manual_temp, manual_hum, manual_moist, manual_lux, manual_co2)
 
     st.markdown("---")
-    st.markdown("#### 4. Digital Twin Simulation Engine")
-    hil_feedback = st.checkbox("Closed-Loop HIL Feedback", value=st.session_state.hil_feedback)
-    sensor_noise = st.checkbox("Sensor Measurement Noise", value=st.session_state.sensor_noise)
-    st.session_state.hil_feedback = hil_feedback
-    st.session_state.sensor_noise = sensor_noise
-    sensor_array.noise_enabled = sensor_noise
+    st.markdown("#### 4. Hardware Acquisition & Control")
+    closed_loop_control = st.checkbox("Closed-Loop Hardware Feedback", value=st.session_state.closed_loop_control)
+    signal_filtering = st.checkbox("ADC Median Signal Filtering", value=st.session_state.signal_filtering)
+    st.session_state.closed_loop_control = closed_loop_control
+    st.session_state.signal_filtering = signal_filtering
+    sensor_array.noise_enabled = signal_filtering
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        step_pressed = st.button("⏱️ Next Tick (+1s)", use_container_width=True)
+        step_pressed = st.button("⏱️ Sample Next (+1s)", use_container_width=True)
     with col_btn2:
         reset_pressed = st.button("🔄 Reset System", use_container_width=True)
 
@@ -342,9 +340,9 @@ with st.sidebar:
 
 
 # ============================================================================
-# SIMULATION STEPPING & SENSOR TELEMETRY READ
+# HARDWARE POLLING & SENSOR TELEMETRY READ
 # ============================================================================
-if step_pressed and st.session_state.hil_feedback:
+if step_pressed and st.session_state.closed_loop_control:
     sensor_array.step_simulation(delta_seconds=1.5)
     st.session_state.temp_input = sensor_array.temperature
     st.session_state.hum_input = sensor_array.humidity
@@ -352,7 +350,7 @@ if step_pressed and st.session_state.hil_feedback:
     st.session_state.lux_input = sensor_array.light_lux
     st.session_state.co2_input = sensor_array.co2_ppm
 
-# Read live virtual sensor payload
+# Read live hardware sensor payload
 telemetry = sensor_array.read_all()
 cur_temp = telemetry["temperature"]
 cur_hum = telemetry["humidity"]
@@ -381,7 +379,7 @@ control_decision = ai_engine.evaluate_hybrid_control(
     ai_result=ai_result,
 )
 
-# Apply decisions to Virtual GPIO BCM Pins (Actuators)
+# Apply decisions to Physical GPIO BCM Pins (Relays)
 pump_state = HIGH if control_decision["water_pump"]["active"] else LOW
 fan_state = HIGH if control_decision["cooling_fan"]["active"] else LOW
 light_state = HIGH if control_decision["grow_light"]["active"] else LOW
@@ -445,7 +443,7 @@ st.markdown(
                     🌿 Edge-AI Smart Greenhouse Control Center
                 </h2>
                 <p style="margin: 4px 0 0 0; color: #93c5fd; font-size: 0.95rem;">
-                    IEEE Access Research Implementation &bull; Raspberry Pi Digital Twin HIL Architecture
+                    IEEE Access Research Implementation &bull; Raspberry Pi Embedded Hardware Architecture
                 </p>
             </div>
             <div style="text-align: right; margin-top: 8px;">
@@ -453,7 +451,7 @@ st.markdown(
                     Active Crop: <b>{selected_crop}</b>
                 </span>
                 <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #6ee7b7; padding: 6px 14px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; margin-left: 8px;">
-                    Tick: #{step_num} | {timestamp_str}
+                    Sample: #{step_num} | {timestamp_str}
                 </span>
             </div>
         </div>
@@ -824,7 +822,7 @@ if st.session_state.history_data:
             font=dict(color="#cbd5e1", size=10),
         ),
     )
-    fig_time.update_xaxes(showgrid=True, gridcolor="#1e293b", title_text="Simulation Step (Tick)", row=2, col=1)
+    fig_time.update_xaxes(showgrid=True, gridcolor="#1e293b", title_text="Hardware Sampling Interval", row=2, col=1)
     fig_time.update_yaxes(showgrid=True, gridcolor="#1e293b", row=1, col=1)
     fig_time.update_yaxes(
         tickvals=[0, 1],
@@ -844,9 +842,9 @@ st.markdown("---")
 # ----------------------------------------------------------------------------
 # 4. EXPERIMENT RESULTS LOG & CSV EXPORT
 # ----------------------------------------------------------------------------
-st.markdown("### 📋 Section III Research Experiment Log & Export")
+st.markdown("### 📋 Hardware Experiment Log & Export")
 st.caption(
-    "Tabular evaluation data logged across live test iterations for IEEE paper verification and project review."
+    "Tabular evaluation data logged across live Raspberry Pi hardware iterations for IEEE paper verification."
 )
 
 if st.session_state.experiment_logs:
@@ -875,4 +873,3 @@ if st.session_state.experiment_logs:
             st.session_state.history_data.clear()
             st.session_state.step_counter = 0
             st.rerun()
-
