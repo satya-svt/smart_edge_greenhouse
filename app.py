@@ -7,7 +7,7 @@ Based on IEEE Access Paper:
 
 Implements:
 - Section III Experimental Condition Injection (Presets)
-- Real-time Virtual Raspberry Pi GPIO BCM Actuator Control (Relays: 17, 27, 22)
+
 - Edge-AI Diagnostics (Classification Confidence, Probabilities, Edge vs Cloud Latency)
 - Closed-Loop Digital Twin / HIL Simulation Feedback
 - Plotly Multi-Parameter Telemetry & Actuator Digital Waveform Charts
